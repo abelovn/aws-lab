@@ -1,0 +1,38 @@
+vpc_name: "wp-vpc"
+vpc_cidr: "192.168.0.0/16"
+vpc_region: "us-east-1"
+vpc_tenancy: "default"
+owner_email: "a.belov.n@gmail.com"
+
+first_az: "us-east-1a"
+first_subnet_cidr: "192.168.1.0/24"
+first_subnet_name: "vpc_first_subnet"
+
+second_az: "us-east-1b"
+second_subnet_cidr: "192.168.2.0/24"
+second_subnet_name: "vpc_second_subnet"
+
+igw_name: "wp-igw"
+route_table_name: "wp-rt"
+sg_elb_name: wp_sg_elb
+sg_ec2_name: wp_sg_ec2
+sg_efs_name: wp_sg_efs
+sg_rds_name: wp_sg_rds
+efs_name: wp_efs
+
+
+rds_subnet_group_name: wp_subnet_group
+rds_engine_version: 8.0.27
+rds_instance_id: wp-rds
+rds_instance_class: db.t2.micro
+rds_username: admin
+rds_password: password
+rds_storage_alloc: 20
+
+ec2_instance_type: t2.micro
+# Debian 10 image  
+ec2_instance_ami: ami-0245697ee3e07e755
+ec2_instance_first_name: wp_ec2_first
+ec2_instance_second_name: wp_ec2_second
+elb_target_group_name: wp-elb-target-group
+elb_name: wp-elb

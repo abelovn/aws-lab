@@ -1,0 +1,218 @@
+---
+- name: Created VPC
+  ec2_vpc_net:
+    name: "{{ vpc_name }}"
+    cidr_block: "{{ vpc_cidr }}"
+    region: "{{ vpc_region }}"
+    tenancy: "{{ vpc_tenancy }}"
+    state: present
+    tags:
+      Name: "{{ vpc_name }}"
+      owner: "{{ owner_email }}"
+  register: vpc
+
+- name: Created first subnet
+  ec2_vpc_subnet:
+    vpc_id: "{{ vpc.vpc.id }}"
+    cidr: "{{ first_subnet_cidr }}"
+    region: "{{ vpc_region }}"
+    az: "{{ first_az }}"
+    state: present
+    tags:
+      Name: "{{ first_subnet_name }}"
+      owner: "{{ owner_email }}"
+  register: first_subnet
+
+- name: Created second subnet
+  ec2_vpc_subnet:
+    vpc_id: "{{ vpc.vpc.id }}"
+    cidr: "{{ second_subnet_cidr }}"
+    region: "{{ vpc_region }}"
+    az: "{{ second_az }}"
+    state: present
+    tags:
+      Name: "{{ second_subnet_name }}"
+      owner: "{{ owner_email }}"
+  register: second_subnet
+  
+- name: Created IGW
+  ec2_vpc_igw:
+    vpc_id: "{{ vpc.vpc.id }}"
+    region: "{{ vpc_region }}"
+    tags:
+      Name: "{{ igw_name }}"
+      owner: "{{ owner_email }}"
+  register: igw      
+  
+- name: Created route table
+  ec2_vpc_route_table:
+    vpc_id: "{{ vpc.vpc.id }}"
+    region: "{{ vpc_region }}"
+    subnets:
+      - "{{ first_subnet.subnet.id }}"
+      - "{{ second_subnet.subnet.id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ igw.gateway_id }}"
+    tags:
+      Name: "{{ route_table_name }}"
+      owner: "{{ owner_email }}"
+  register: route_table
+
+- name: Created internet via http to alb security group
+  ec2_group:
+    name: "{{ sg_elb_name }}"
+    description: internet_via_http_to_alb_sg
+    vpc_id: "{{ vpc.vpc.id }}"
+    region: "{{ vpc_region }}"
+    rules:
+      - { proto: tcp, ports: 80,  cidr_ip: 0.0.0.0/0 }         
+    tags:
+      Name: "{{ sg_elb_name }}"
+      owner: "{{ owner_email }}"
+  register: sg_elb   
+
+
+
+- name: Created alb via http to ec2 security group
+  ec2_group:
+    name: "{{ sg_ec2_name }}"
+    description: alb_via_http_to_ec2_sg
+    vpc_id: "{{ vpc.vpc.id }}"
+    region: "{{ vpc_region }}"
+    rules:
+      - { proto: tcp, ports: 22,  cidr_ip: 0.0.0.0/0 }
+      - { proto: tcp, ports: 80,  group_name: "{{ sg_elb_name }}" }
+    tags:
+      Name: "{{ sg_ec2_name }}"
+      owner: "{{ owner_email }}"
+  register: sg_ec2
+  
+
+- name: Created ec2_to_efs_sg security group
+  ec2_group:
+    name: "{{ sg_efs_name }}"
+    description: ec2_to_efs_sg
+    vpc_id: "{{ vpc.vpc.id }}"
+    region: "{{ vpc_region }}"
+    rules:
+      - { proto: tcp, ports: 2049,  group_name: "{{ sg_ec2_name }}" }
+    tags:
+      Name: "{{ sg_efs_name }}"
+      owner: "{{ owner_email }}"
+  register: sg_efs
+
+- name: Created ec2_to_rds_sg security group
+  ec2_group:
+    name: "{{ sg_rds_name }}"
+    description: ec2_to_rds_sg
+    vpc_id: "{{ vpc.vpc.id }}"
+    region: "{{ vpc_region }}"
+    rules:
+      - { proto: tcp, ports: 3306,  group_name: "{{ sg_ec2_name }}" }
+    tags:
+      Name: "{{ sg_rds_name }}"
+      owner: "{{ owner_email }}"
+  register: sg_rds
+
+- name: Created Application Load Balancer
+  elb_application_lb:
+    name: "{{ elb_name }}"
+    region: "{{ vpc_region }}"
+    security_groups:
+      - "{{ sg_elb.group_id }}"
+    subnets:
+      - "{{ first_subnet.subnet.id }}"
+      - "{{ second_subnet.subnet.id }}"
+    state: present
+    tags:
+      Name: "{{ elb_name }}"
+      owner: "{{ owner_email }}"
+  register: elb
+
+- name: Created RDS subnet group
+  rds_subnet_group:
+    state: present
+    name: "{{ rds_subnet_group_name }}"
+    description: "{{ rds_subnet_group_name }}"
+    region: "{{ vpc_region }}"
+    subnets:
+      - "{{ first_subnet.subnet.id }}"
+      - "{{ second_subnet.subnet.id }}"
+  register: rds_sg 
+
+- debug:
+    msg: 
+      - "Next following tasks will take 10-15 minutes to complete."
+      - "Please, get some patience for success."      
+  
+- name: Create RDS instance
+  rds_instance:
+    region: "{{ vpc_region }}"
+    engine: mysql
+    engine_version: "{{ rds_engine_version }}"
+    db_instance_identifier: "{{ rds_instance_id }}"
+    db_instance_class: "{{ rds_instance_class }}"
+    allocated_storage: "{{ rds_storage_alloc }}"
+    db_subnet_group_name: "{{ rds_sg.subnet_group.name }}"
+    vpc_security_group_ids: [ "{{ sg_rds.group_id }}" ]
+    username: "{{ rds_username }}"
+    password: "{{ rds_password }}"
+    publicly_accessible: no
+    state: started
+    tags:
+      Name: "{{ rds_instance_id }}"
+      owner: "{{ owner_email }}"
+  register: rds_instance
+
+- name: Create EFS
+  efs:
+    name: "{{ efs_name }}"
+    region: "{{ vpc_region }}"
+    targets:
+      - subnet_id: "{{ first_subnet.subnet.id }}"
+        security_groups: [ "{{ sg_efs.group_id }}" ]
+      - subnet_id: "{{ second_subnet.subnet.id }}"
+        security_groups: [ "{{ sg_efs.group_id }}" ]
+    tags:
+      Name: "{{ efs_name }}"
+      owner: "{{ owner_email }}"
+  register: efs      
+  
+  
+- name: Create EC2 instance for the first subnet
+  ec2_instance:
+    name: "{{ ec2_instance_first_name }}"
+    key_name: "{{ ssh_key_name }}"
+    region: "{{ vpc_region }}"
+    vpc_subnet_id: "{{ first_subnet.subnet.id }}"
+    instance_type: "{{ ec2_instance_type }}"
+    security_group: "{{ sg_ec2.group_id }}"
+    network:
+      assign_public_ip: true
+    image_id: "{{ ec2_instance_ami }}"
+    state: running
+    user_data: "{{ lookup('template', 'user_data.j2') }}"
+    tags:
+      Name: "{{ ec2_instance_first_name }}"
+      owner: "{{ owner_email }}"
+  register: ec2_instance_first  
+  
+  
+- name: Create EC2 instance for the right subnet
+  ec2_instance:
+    name: "{{ ec2_instance_second_name }}"
+    key_name: "{{ ssh_key_name }}"
+    region: "{{ vpc_region }}"
+    vpc_subnet_id: "{{ second_subnet.subnet.id }}"
+    instance_type: "{{ ec2_instance_type }}"
+    security_group: "{{ sg_ec2.group_id }}"
+    network:
+      assign_public_ip: true
+    image_id: "{{ ec2_instance_ami }}"
+    state: running
+    user_data: "{{ lookup('template', 'user_data.j2') }}"
+    tags:
+      Name: "{{ ec2_instance_second_name }}"
+      owner: "{{ owner_email }}"
+  register: ec2_instance_second

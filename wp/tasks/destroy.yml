@@ -1,0 +1,103 @@
+---
+- name: Find VPC
+  ec2_vpc_net_info:
+    region: "{{ vpc_region }}"
+    filters:
+      "tag:Name": "{{ vpc_name }}"
+      "tag:owner": "{{ owner_email }}"
+  register: vpcs 
+
+- name: Delete Application Load Balancer
+  elb_application_lb:
+    name: "{{ elb_name }}"
+   
+    region: "{{ vpc_region }}"
+    state: absent 
+
+
+- name: Delete EFS
+  efs:
+    name: "{{ efs_name }}"
+    
+    region: "{{ vpc_region }}"
+    state: absent
+
+- name: Delete RDS instance
+  rds_instance:
+    id: "{{ rds_instance_id }}"
+    region: "{{ vpc_region }}"
+    state: absent
+    skip_final_snapshot: True        
+  
+- name: Delete RDS subnet group
+  rds_subnet_group:
+    name: "{{ rds_subnet_group_name }}"
+    
+    region: "{{ vpc_region }}"
+    state: absent
+
+- name: Delete security groups
+  ec2_group:
+    name: "{{ item }}"
+    
+    region: "{{ vpc_region }}"
+    vpc_id: "{{ vpcs.vpcs[0].vpc_id }}"
+    state: absent
+  loop:
+    - "{{ sg_efs_name }}"
+    - "{{ sg_rds_name }}"
+    - "{{ sg_ec2_name }}"
+    - "{{ sg_elb_name }}"
+  when: vpcs.vpcs[0].vpc_id is defined
+
+
+
+
+
+
+
+- name: Deleted subnets
+  ec2_vpc_subnet:
+    cidr: "{{ item }}"
+    vpc_id: "{{ vpcs.vpcs[0].vpc_id }}"
+    region: "{{ vpc_region }}"
+    state: absent
+  loop:
+    - "{{ first_subnet_cidr }}"
+    - "{{ second_subnet_cidr }}"
+  when: vpcs.vpcs[0].vpc_id is defined
+  
+- name: Delete route table
+  ec2_vpc_route_table:
+    vpc_id: "{{ vpcs.vpcs[0].vpc_id }}"
+    region: "{{ vpc_region }}"
+    tags:
+      Name: "{{ route_table_name }}"
+      owner: "{{ owner_email }}"
+    state: absent
+  when: vpcs.vpcs[0].vpc_id is defined      
+  
+- name: Deleted IGW
+  ec2_vpc_igw:
+    vpc_id: "{{ vpcs.vpcs[0].vpc_id }}"
+    region: "{{ vpc_region }}"
+    tags:
+      Name: "{{ igw_name }}"
+      owner: "{{ owner_email }}"
+    
+    state: absent
+  when: vpcs.vpcs[0].vpc_id is defined    
+
+
+
+
+- name: Delete VPC
+  ec2_vpc_net:
+    name: "{{ vpc_name }}"
+    cidr_block: "{{ vpc_cidr }}"
+    region: "{{ vpc_region }}"
+    tags:
+      Name: "{{ vpc_name }}"
+      owner: "{{ owner_email }}"
+    state: absent  
+  
