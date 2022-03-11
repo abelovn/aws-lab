@@ -1,5 +1,8 @@
 # Ansible role to deploy AWS infrastructure for WordPress
-# Ansible script of this repo is intended to spin up the infrastructure described below.
+### Ansible script of this repo is intended to spin up the infrastructure described below
+
+
+
 
 To run the playbooks, you need Ansible 2.9, Python 3x and the latest botocore, boto and boto3 python packages.
 
@@ -29,5 +32,5 @@ ansible-playbook deploy.yml
 
 To destroy the infrastructure, when done:
 ```bash
-   ansible-playbook destroy.yml
+ansible-playbook destroy.yml
 ```
