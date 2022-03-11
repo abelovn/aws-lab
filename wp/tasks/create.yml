@@ -143,7 +143,7 @@
 
 - debug:
     msg: 
-      - "Next following tasks will take 10-15 minutes to complete."
+      - "Next following tasks will take about 10 minutes to complete."
       - "Please, get some patience for success."      
   
 - name: Create RDS instance
@@ -287,10 +287,7 @@
       - "You may also manage EC2 nodes via ssh using the following commands:"
       - "    ssh -i {{ ssh_key_file }} admin@{{ec2_instance_first.instances[0].public_ip_address}}"
       - "    ssh -i {{ ssh_key_file }} admin@{{ec2_instance_second.instances[0].public_ip_address}}"
-      - "RDS database management (from EC2 instances):"
-      - "   mysql -h {{ rds_instance.endpoint.address }}"
-      - "         -u {{ rds_username }}"
-      - "         -p{{ rds_password }} "
+      
   when: 
     - ec2_instance_first.instances[0].public_ip_address is defined
     - ec2_instance_second.instances[0].public_ip_address is defined  
