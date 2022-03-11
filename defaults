@@ -37,7 +37,7 @@ ec2_instance_second_name: wp_ec2_second
 elb_target_group_name: wp-elb-target-group
 elb_name: wp-elb
 
-efs_mount_dns: efs.filesystem_address
+efs_dns_name: aws.efs.filesystem_address
 
 ssh_key_name: wp_ssh_key
 # if you define your own key file name, make sure that it is added to .gitignore
@@ -52,7 +52,7 @@ www_html_dir: /var/www/html
 wp_dbname: wordpress
 wp_dbuser: wpuser
 wp_dbpassword: BMmVME3bn
-wp_site_title: This WordPress is deployed by Ansible on AWS Cloud by Alexander Belov (Alexandr_Belov1@epam.com), unit24 of the DevOps School EPAM
+wp_site_title: DevOps school AWS lab
 wp_admin_user: wpadmin
 wp_admin_password: BMmVME3bn
 wp_admin_email: a.belov.n@gmail.com

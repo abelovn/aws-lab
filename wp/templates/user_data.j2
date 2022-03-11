@@ -1,0 +1,49 @@
+#!/bin/bash
+apt-get update
+apt-get -y install nfs-common
+mkdir -p {{ www_html_dir }}
+
+sudo mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport {{ efs.efs.filesystem_address }} /var/www/html
+
+apt-get -y install apache2
+rm -f {{ www_html_dir }}/index.html
+apt-get -y install default-mysql-client
+apt-get -y install php php-mysql php-gd
+curl -sO https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+mv wp-cli.phar /usr/local/bin/wp
+chmod 0755 /usr/local/bin/wp
+
+test -f {{ www_html_dir }}/wp-config.php && exit 0
+test -f {{ www_html_dir }}/wp_install_in_progress && exit 0
+
+touch {{ www_html_dir }}/wp_install_in_progress
+mysql -h {{ rds_instance.endpoint.address }} \
+      -u {{ rds_username }} \
+      -p{{ rds_password }} <<EOF
+CREATE USER IF NOT EXISTS '{{ wp_dbuser }}' IDENTIFIED BY '{{ wp_dbpassword }}';
+CREATE DATABASE IF NOT EXISTS {{ wp_dbname }};
+GRANT ALL PRIVILEGES on {{ wp_dbname }}.* TO '{{ wp_dbuser }}' ;
+FLUSH PRIVILEGES;
+EOF
+
+
+chown -R www-data:www-data {{ www_html_dir }}
+cd {{ www_html_dir }}
+sudo -u www-data wp core download
+sudo -u www-data wp config create \
+     --dbname={{ wp_dbname }} \
+     --dbuser={{ wp_dbuser }}  \
+     --dbpass={{ wp_dbpassword }}  \
+     --dbhost={{ rds_instance.endpoint.address }}
+sudo -u www-data wp core install \
+     --url={{ elb.dns_name }} \
+     --title="{{ wp_site_title }}" \
+     --admin_user={{ wp_admin_user }} \
+     --admin_password={{ wp_admin_password }} \
+     --admin_email={{ wp_admin_email }}
+	 
+sudo -u www-data wp plugin --path=/var/www/html install server-ip-memory-usage --activate
+	 
+rm -f {{ www_html_dir }}/wp_install_in_progress	 
+
+sudo -u www-data wp plugin --path=/var/www/html list

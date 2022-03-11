@@ -1,24 +1,47 @@
 ---
+- name: Delete EC2 instances
+  ec2_instance:
+    region: "{{ vpc_region }}"
+    state: absent
+    filters:
+      "tag:Name": "{{ item }}"
+      "tag:owner": "{{ owner_email }}"
+  loop:
+    - "{{ ec2_instance_first_name }}"
+    - "{{ ec2_instance_second_name }}"
+
 - name: Find VPC
   ec2_vpc_net_info:
     region: "{{ vpc_region }}"
     filters:
       "tag:Name": "{{ vpc_name }}"
       "tag:owner": "{{ owner_email }}"
-  register: vpcs 
+  register: vpcs
 
 - name: Delete Application Load Balancer
   elb_application_lb:
     name: "{{ elb_name }}"
-   
     region: "{{ vpc_region }}"
-    state: absent 
+    state: absent
 
+- name: sleep for 300 seconds and continue with play
+  wait_for:
+    timeout: 300
+  delegate_to: localhost
+
+- name: Delete ELB target group
+  elb_target_group:
+    name: "{{ elb_target_group_name }}"
+    region: "{{ vpc_region }}"
+    vpc_id: "{{ vpcs.vpcs[0].vpc_id }}"
+    protocol: http
+    port: 80
+    state: absent
+  when: vpcs.vpcs[0].vpc_id is defined
 
 - name: Delete EFS
   efs:
     name: "{{ efs_name }}"
-    
     region: "{{ vpc_region }}"
     state: absent
 
@@ -27,19 +50,18 @@
     id: "{{ rds_instance_id }}"
     region: "{{ vpc_region }}"
     state: absent
-    skip_final_snapshot: True        
-  
+    skip_final_snapshot: True
+
 - name: Delete RDS subnet group
   rds_subnet_group:
     name: "{{ rds_subnet_group_name }}"
-    
     region: "{{ vpc_region }}"
     state: absent
+    
 
 - name: Delete security groups
   ec2_group:
     name: "{{ item }}"
-    
     region: "{{ vpc_region }}"
     vpc_id: "{{ vpcs.vpcs[0].vpc_id }}"
     state: absent
@@ -50,23 +72,17 @@
     - "{{ sg_elb_name }}"
   when: vpcs.vpcs[0].vpc_id is defined
 
-
-
-
-
-
-
-- name: Deleted subnets
+- name: Delete subnets
   ec2_vpc_subnet:
     cidr: "{{ item }}"
-    vpc_id: "{{ vpcs.vpcs[0].vpc_id }}"
     region: "{{ vpc_region }}"
+    vpc_id: "{{ vpcs.vpcs[0].vpc_id }}"
     state: absent
   loop:
     - "{{ first_subnet_cidr }}"
     - "{{ second_subnet_cidr }}"
   when: vpcs.vpcs[0].vpc_id is defined
-  
+
 - name: Delete route table
   ec2_vpc_route_table:
     vpc_id: "{{ vpcs.vpcs[0].vpc_id }}"
@@ -75,21 +91,17 @@
       Name: "{{ route_table_name }}"
       owner: "{{ owner_email }}"
     state: absent
-  when: vpcs.vpcs[0].vpc_id is defined      
-  
-- name: Deleted IGW
+  when: vpcs.vpcs[0].vpc_id is defined
+
+- name: Delete Internet gateway
   ec2_vpc_igw:
     vpc_id: "{{ vpcs.vpcs[0].vpc_id }}"
     region: "{{ vpc_region }}"
     tags:
       Name: "{{ igw_name }}"
       owner: "{{ owner_email }}"
-    
     state: absent
-  when: vpcs.vpcs[0].vpc_id is defined    
-
-
-
+  when: vpcs.vpcs[0].vpc_id is defined
 
 - name: Delete VPC
   ec2_vpc_net:
@@ -99,5 +111,4 @@
     tags:
       Name: "{{ vpc_name }}"
       owner: "{{ owner_email }}"
-    state: absent  
-  
+    state: absent

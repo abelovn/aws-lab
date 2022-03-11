@@ -178,7 +178,19 @@
       Name: "{{ efs_name }}"
       owner: "{{ owner_email }}"
   register: efs      
-  
+
+- name: Create EC2 keypair
+  ec2_key:
+    name: "{{ ssh_key_name }}"
+    region: "{{ vpc_region }}"
+  register: ssh_key
+
+- name: Save private key (if generated)
+  copy:
+    content: "{{ ssh_key.key.private_key }}"
+    dest: "{{ ssh_key_file }}"
+    mode: 0600
+  when: ssh_key.key.private_key is defined  
   
 - name: Create EC2 instance for the first subnet
   ec2_instance:
@@ -197,9 +209,9 @@
       Name: "{{ ec2_instance_first_name }}"
       owner: "{{ owner_email }}"
   register: ec2_instance_first  
+
   
-  
-- name: Create EC2 instance for the right subnet
+- name: Create EC2 instance for the second subnet
   ec2_instance:
     name: "{{ ec2_instance_second_name }}"
     key_name: "{{ ssh_key_name }}"
@@ -216,3 +228,69 @@
       Name: "{{ ec2_instance_second_name }}"
       owner: "{{ owner_email }}"
   register: ec2_instance_second
+  
+
+
+
+  
+- name: Create a target group for ELB
+  elb_target_group:
+    name: "{{ elb_target_group_name }}"
+    protocol: http
+    port: 80
+    vpc_id: "{{ vpc.vpc.id }}"
+    region: "{{ vpc_region }}"
+    health_check_protocol: http
+    health_check_path: /
+    successful_response_codes: "200"
+    targets:
+      - Id: "{{ ec2_instance_first.instances[0].instance_id }}"
+        Port: 80
+      - Id: "{{ ec2_instance_second.instances[0].instance_id }}"
+        Port: 80
+    state: present
+    tags:
+      Name: "{{ elb_target_group_name }}"
+      owner: "{{ owner_email }}"
+  register: elb_target_group
+
+- name: Update Application Load Balancer
+  elb_application_lb:
+    name: "{{ elb_name }}"
+    region: "{{ vpc_region }}"
+    security_groups:
+      - "{{ sg_elb.group_id }}"
+    subnets:
+      - "{{ first_subnet.subnet.id }}"
+      - "{{ second_subnet.subnet.id }}"
+    listeners:
+      - Protocol: HTTP
+        Port: 80
+        DefaultActions:
+          - Type: forward
+            TargetGroupName: "{{ elb_target_group_name }}"
+    state: present
+    tags:
+      Name: "{{ elb_name }}"
+      owner: "{{ owner_email }}"
+  register: elb
+
+- debug:
+    msg: 
+      - "Site address: http://{{ elb.dns_name }}"
+      - "  Admin page: http://{{ elb.dns_name }}/wp-admin/"
+      - "    Username: {{ wp_admin_user }}"
+      - "    Password: {{ wp_admin_password }}"
+
+- debug: 
+    msg: 
+      - "You may also manage EC2 nodes via ssh using the following commands:"
+      - "    ssh -i {{ ssh_key_file }} admin@{{ec2_instance_first.instances[0].public_ip_address}}"
+      - "    ssh -i {{ ssh_key_file }} admin@{{ec2_instance_second.instances[0].public_ip_address}}"
+      - "RDS database management (from EC2 instances):"
+      - "   mysql -h {{ rds_instance.endpoint.address }}"
+      - "         -u {{ rds_username }}"
+      - "         -p{{ rds_password }} "
+  when: 
+    - ec2_instance_first.instances[0].public_ip_address is defined
+    - ec2_instance_second.instances[0].public_ip_address is defined  
