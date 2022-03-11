@@ -34,3 +34,4 @@ To destroy the infrastructure, when done:
 ```bash
 ansible-playbook destroy.yml
 ```
+# To check how the balancer works you may log in at admin page of site by link in output, scroll down the page and see the IP of the instance.
