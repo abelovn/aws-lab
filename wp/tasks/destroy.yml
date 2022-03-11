@@ -24,9 +24,9 @@
     region: "{{ vpc_region }}"
     state: absent
 
-- name: sleep for 300 seconds and continue with play
+- name: sleep for 180 seconds and continue with play. It needs for deleting dependencies.
   wait_for:
-    timeout: 300
+    timeout: 180
   delegate_to: localhost
 
 - name: Delete ELB target group
