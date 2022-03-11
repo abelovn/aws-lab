@@ -45,5 +45,3 @@ sudo -u www-data wp core install \
 sudo -u www-data wp plugin --path=/var/www/html install server-ip-memory-usage --activate
 	 
 rm -f {{ www_html_dir }}/wp_install_in_progress	 
-
-sudo -u www-data wp plugin --path=/var/www/html list
