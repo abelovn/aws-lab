@@ -1,7 +1,7 @@
 # Ansible role to deploy AWS infrastructure for WordPress
 ### Ansible script of this repo is intended to spin up the infrastructure described below
 
-
+![Alt text](infra.png?raw=true)
 
 
 To run the playbooks, you need Ansible 2.9, Python 3x and the latest botocore, boto and boto3 python packages.
